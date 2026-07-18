@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Data — raw dataset is NOT redistributed in this repo (fetched + cached locally).
+# CC BY 4.0 allows redistribution with attribution, but we keep the repo lean and
+# always fetch from the official source so lineage stays verifiable.
+data/
+
+# Trained artifacts are build outputs; regenerate with `python -m energy_forecasting.train`.
+# Metrics/config JSON+CSV summaries ARE committed as portfolio evidence.
+artifacts/*.joblib
+
+# MLflow local tracking
+mlruns/
+
+# Secrets / environment — never commit
+.env
+*.pem
+*.key
+
+# OS noise
+.DS_Store

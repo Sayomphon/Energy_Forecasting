@@ -1,0 +1,12 @@
+{
+  "n_rows": 19735,
+  "time_min": "2016-01-11 17:00:00",
+  "time_max": "2016-05-27 18:00:00",
+  "n_duplicate_timestamps": 0,
+  "n_gaps": 0,
+  "gap_examples": [],
+  "n_negative_target": 0,
+  "modal_interval_minutes": 10.0,
+  "passed": true,
+  "failures": []
+}

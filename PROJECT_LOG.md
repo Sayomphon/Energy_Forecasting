@@ -1,0 +1,155 @@
+# PROJECT_LOG — บันทึกการขึ้นโปรเจค Energy Forecasting
+
+> บันทึกว่าทำอะไรไปบ้าง ตัดสินใจอะไร เพราะอะไร และจะไปต่ออย่างไร
+> อ้างอิงแผนจาก `02_energy_forecasting_ai_engineering_plan.docx` (v1.0)
+
+## 2026-07-18 — ขึ้นโปรเจคครั้งแรก (v1.0.0)
+
+### สรุปผลลัพธ์
+
+| รายการ | สถานะ |
+|---|---|
+| โครงสร้างโปรเจค + tooling (pyproject, ruff config, .gitignore, git) | ✅ |
+| Library code 9 โมดูล (`src/energy_forecasting/`) | ✅ |
+| Unit tests **52 ข้อ ผ่านทั้งหมด** (เน้น temporal correctness) | ✅ |
+| Notebook 19 sections ตาม blueprint บทที่ 5 ของ docx | ✅ |
+| เอกสาร README / model card / บันทึกนี้ | ✅ |
+| รัน pipeline จริงกับ UCI dataset จบ end-to-end + ตรวจ inference จาก bundle | ✅ |
+
+### 1. โครงสร้างที่สร้าง
+
+```
+Energy_Forecasting/
+├── src/energy_forecasting/    # package ติดตั้งได้ — temporal logic ทั้งหมดอยู่ที่นี่
+│   ├── config.py              # ForecastConfig (frozen dataclass) — single source of truth
+│   ├── data.py                # fetch/cache + lineage + data contract validation
+│   ├── features.py            # past-only features + availability audit
+│   ├── splits.py              # chronological split + expanding-window folds
+│   ├── models.py              # baselines เป็น estimator จริง + Ridge + HGB
+│   ├── metrics.py             # MAE/RMSE/WAPE/bias/peak-MAE + slice analysis
+│   ├── backtest.py            # fold runner + selection rule + ablation
+│   ├── inference.py           # bundle save/load (sha256) + forecast contract + fallback
+│   └── train.py               # CLI: python -m energy_forecasting.train
+├── notebooks/energy_1h_forecast.ipynb   # 39 cells / 19 sections
+├── tests/                     # 47 tests
+├── artifacts/                 # ผลลัพธ์ generated (bundle ไม่เข้า git)
+├── docs/model_card.md
+├── README.md                  # ภาษาอังกฤษ สำหรับ recruiter/reviewer
+├── pyproject.toml             # deps + ruff (รวม bandit security rules) + pytest config
+└── requirements.txt           # pinned versions ตาม environment จริง
+```
+
+**เหตุผลหลักที่แยก logic ออกจาก notebook**: docx เน้นว่า feature builder
+ต้องเป็นชุดเดียวกันทั้ง train/inference — การมี implementation เดียวใน package
+แล้วให้ notebook เรียกใช้ คือวิธีกำจัด training-serving skew ที่ตรวจสอบได้จริง
+
+### 2. การตัดสินใจเชิงเทคนิคที่สำคัญ (design decisions)
+
+1. **`load_now` เป็น feature แยกจาก `lag_1`** — ค่าที่ stamp เวลา t ถือว่ารู้แล้ว ณ t
+   จึงใช้ได้ (คือ persistence baseline ในตัว) ส่วน lag_k = ค่าที่ t−k step ตาม docx
+2. **Seasonal naive align กับเวลา target ไม่ใช่เวลา t** — "same time yesterday"
+   ของค่าที่จะพยากรณ์ (t+1h) คือ t+1h−24h = shift(138) ไม่ใช่ shift(144)
+   จุดนี้ docx เขียนกำกวม เราเลือกตีความที่ถูกต้องตามความหมายจริง และมี unit test ยืนยัน
+3. **Rolling ทุกตัว `shift(1)` ก่อน aggregate** — ตาม docx ทุก window เป็นอดีตล้วน
+4. **Peak threshold มาจาก train quantile (q90) เท่านั้น** — evaluation ห้ามแอบดู label ตัวเอง
+5. **Selection rule ตายตัวก่อนเปิด test set**: candidate ต้องชนะ baseline
+   ทุกตัวเสียงข้างมากของ folds → เลือก mean MAE ต่ำสุด → ถ้าสูสี (<2%)
+   เลือกตัวที่ peak MAE ต่ำกว่า และถ้าไม่มีใครชนะ baseline → เลือก baseline (honest failure)
+6. **HGB ใช้ `loss="absolute_error"`** ให้สอดคล้องกับการประเมินด้วย MAE/WAPE
+7. **ไม่ใช้ LSTM/Transformer** ตาม scope guardrail ของ docx
+8. **Splits deterministic จาก timestamp ล้วน** — seed มีผลเฉพาะการ fit โมเดล
+
+### 3. มาตรการด้านความปลอดภัย (security)
+
+- **Artifact integrity**: bundle เป็น joblib pickle (deserialize = execute code ได้)
+  → `save_bundle` เขียน sha256 sidecar และ `load_bundle` **ปฏิเสธ** ไฟล์ที่
+  checksum ไม่ตรงหรือไม่มี sidecar (มี test ยืนยันการ reject ไฟล์ที่ถูกแก้)
+- **Data integrity**: dataset cache มี lineage (source, retrieval date, sha256)
+  และ `load_raw` verify hash ทุกครั้ง; hash ของข้อมูล train ฝังใน bundle
+- **Input validation ที่ inference**: ตรวจ schema, ตัดข้อมูลหลัง prediction_time ทิ้ง
+  (hard guard), history เก่าเกิน 30 นาที / สั้นเกิน / คอลัมน์หาย → fallback
+  พร้อม quality_flag — ไม่มีทางส่ง NaN เข้าโมเดลเงียบๆ
+- **Ruff เปิดกฎ `S` (bandit)** ใน pyproject.toml สำหรับ security lint
+- **.gitignore**: กัน data/, bundle, .env, key/pem — ไม่มี secret/PII เข้า repo
+- **ไม่ redistribute dataset** — fetch จากแหล่งทางการตอน build (CC BY 4.0 + attribution ครบ)
+
+### 4. Unit tests (52 ข้อ — ผ่านทั้งหมด)
+
+| กลุ่ม | ตัวอย่างที่สำคัญ |
+|---|---|
+| Target shift | target ตรง 6 steps เป๊ะ (เทียบ manual lookup), ตัดแถวท้ายที่ไม่มี label |
+| **Anti-leakage** | **mutate ข้อมูลอนาคตทั้งหมดแล้ว feature ณ t ต้องไม่เปลี่ยน** (test สำคัญที่สุด), rolling ใช้ window อดีตล้วน, ไม่มี feature ไหน correlate 1.0 กับ label |
+| Data contract | ค่าติดลบ→fail, คอลัมน์หาย→fail, gap→report แต่ tolerate |
+| Splits | train<val<test เชิงเวลา (และจับ shuffle ได้), folds ขยายแบบ expanding ไม่ overlap |
+| Metrics | ค่าที่คำนวณมือ, bias sign convention, peak ใช้ threshold ภายนอก, WAPE denominator=0 |
+| Inference | save→load แล้ว prediction เหมือนเดิมทุก bit, ไฟล์ถูก tamper→reject, ป้อนข้อมูลอนาคตปน→ผลไม่เปลี่ยน, stale/short history→fallback พร้อม flag |
+
+รัน: `PYTHONPATH=src python3 -m pytest tests/` (หรือ `pytest` หลัง `pip install -e .`)
+
+หมายเหตุ: มี RuntimeWarning จาก sklearn/Accelerate BLAS บน macOS ระหว่าง matmul
+ของ Ridge — เป็น warning ภายในไลบรารีที่ทราบกันบน macOS ไม่กระทบความถูกต้องของผลลัพธ์
+
+### 5. Notebook (`notebooks/energy_1h_forecast.ipynb`)
+
+19 sections ตาม blueprint: overview → environment → ingestion → data contract →
+EDA → **leakage audit** → split → preprocessing → baselines → candidates →
+comparison/selection → one-shot test eval → error slices → robustness (จำลอง
+stale/short history จริง) → explainability + negative controls → packaging →
+inference demo (cold start จาก disk) → monitoring plan → limitations
+
+ทุก section มี markdown อธิบายเหตุผลก่อน code และข้อสรุปตาม design rule ของ docx
+
+### 6. ผลการรัน pipeline จริง (2026-07-18)
+
+**Incident ที่เจอและวิธีแก้** — ตอนรันครั้งแรก data contract **fail ทันที**:
+timestamp จาก ucimlrepo มาในรูป `2016-01-1117:00:00` (วันที่ติดกับเวลา ไม่มีช่องว่าง)
+ทั้ง 19,735 แถว → เพิ่ม `parse_timestamps()` ใน `data.py` ที่ลอง explicit format
+ทีละแบบทั้งคอลัมน์ (all-or-nothing ไม่มี half-parse) ใช้ร่วมกันทั้ง contract/
+prepare/inference พร้อม test 5 ข้อ **หลักการ: raw cache คงข้อมูลตามต้นฉบับ
+การ clean อยู่ในโค้ดที่ version และ test ได้** — และนี่คือตัวอย่างจริงว่า
+data contract จับปัญหาก่อนถึง training
+
+**ผล backtest (3 expanding folds, MAE เป็น Wh):**
+
+| Model | MAE mean±std | WAPE | Peak MAE | ชนะ baselines |
+|---|---|---|---|---|
+| **hgb** ✅ | **43.96 ± 8.09** | 0.453 | 239.0 | 3/3 folds |
+| ridge | 54.25 ± 9.67 | 0.559 | 227.0 | 2/3 folds |
+| last_value | 55.38 ± 2.98 | 0.570 | 252.8 | — |
+| seasonal_naive | 61.39 ± 4.43 | 0.632 | 261.8 | — |
+
+**Final test (one-shot, ~3 สัปดาห์สุดท้าย, n=2,938):**
+MAE 34.04 · RMSE 79.68 · WAPE 0.351 · bias −14.36 · peak MAE 220.44 (threshold 200 = train q90)
+
+**ข้อค้นพบที่ต้องพูดตรงๆ:**
+1. **Peak คือจุดอ่อน** — peak MAE 220 เทียบ MAE รวม 34 และ bias ติดลบ
+   แปลว่า under-forecast ช่วง spike อย่างเป็นระบบ → ต่อยอดด้วย quantile regression
+2. **Ablation หักมุม**: ตัด weather/indoor sensors ทิ้งทั้งกลุ่ม MAE *ดีขึ้น* 3.27 Wh
+   → ที่ horizon 1 ชั่วโมง สัญญาณอยู่ที่ lag/rolling/calendar เป็นหลัก ควรทำ v2 ที่ feature ผอมลง
+3. **Negative controls ผ่าน**: ตัด rv1/rv2 แล้ว MAE ขยับแค่ ~0.5 Wh (ระดับ noise)
+4. **Residual ACF lag-1 = 0.64** — ยังมี short-term structure เหลือให้เก็บ
+
+**Inference ตรวจแล้วครบทุก path**: load bundle จาก disk (ผ่าน sha256) → forecast
+ปกติได้ contract ครบ / feed stale → `stale_history_fallback` / history สั้น →
+`insufficient_history_fallback` — ไม่มี path ไหนส่ง NaN เข้าโมเดล
+
+### 7. สิ่งที่ยังไม่ได้ทำ / ขั้นถัดไป
+
+- [ ] รัน notebook จบ (Restart & Run all gate ตาม Definition of Done)
+- [ ] Commit แรกเข้า git (init branch `main` ไว้แล้ว ยังไม่ commit — รอสั่ง)
+- [ ] Feature set v2: ตัด weather/sensor block ตามผล ablation แล้ว backtest ซ้ำ
+- [ ] Stretch (docx บทที่ 12): quantile/conformal intervals, peak-event classifier,
+      MLflow tracking, CI (GitHub Actions รัน pytest + ruff)
+
+### 8. วิธีใช้งานย่อ
+
+```bash
+pip install -e ".[dev]"                      # ติดตั้ง package + dev tools
+pytest                                       # 47 tests
+python -m energy_forecasting.train --fetch   # end-to-end: fetch→contract→backtest→select→package
+```
+
+Artifacts ที่ได้ใน `artifacts/`: `forecast_bundle.joblib` (+`.sha256`),
+`feature_config.json`, `backtest_metrics.csv`, `backtest_summary.csv`,
+`model_selection.json`, `test_metrics.json`, `test_slice_errors.csv`,
+`residual_summary.json`, `data_contract_report.json`, `backtest_calendar.csv`

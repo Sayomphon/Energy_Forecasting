@@ -1,0 +1,22 @@
+{
+  "selected": "hgb",
+  "reason": "lowest mean MAE (43.96) among eligible candidates",
+  "audit": [
+    {
+      "model": "ridge",
+      "fold_wins_vs_baselines": {
+        "last_value": 2,
+        "seasonal_naive": 2
+      },
+      "eligible": true
+    },
+    {
+      "model": "hgb",
+      "fold_wins_vs_baselines": {
+        "last_value": 3,
+        "seasonal_naive": 3
+      },
+      "eligible": true
+    }
+  ]
+}
