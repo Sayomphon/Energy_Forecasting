@@ -104,6 +104,23 @@ class TestPredictOne:
         with pytest.raises(ValueError, match="missing required columns"):
             predict_one(trained_bundle, raw_frame.drop(columns=["Appliances"]), t)
 
+    def test_prediction_time_accepts_iso_string(self, trained_bundle, raw_frame):
+        t = raw_frame["date"].iloc[-1]
+        from_ts = predict_one(trained_bundle, raw_frame, t)
+        from_iso = predict_one(trained_bundle, raw_frame, t.isoformat())
+        assert from_iso["forecast_appliances_wh"] == from_ts["forecast_appliances_wh"]
+
+    def test_prediction_time_accepts_uci_no_space_string(self, trained_bundle, raw_frame):
+        """Regression: raw UCI timestamps ('2016-05-2718:00:00') must parse."""
+        t = raw_frame["date"].iloc[-1]
+        mangled = t.strftime("%Y-%m-%d%H:%M:%S")
+        out = predict_one(trained_bundle, raw_frame, mangled)
+        assert pd.Timestamp(out["prediction_time"]) == t
+
+    def test_unparseable_prediction_time_raises(self, trained_bundle, raw_frame):
+        with pytest.raises(ValueError, match="Unparseable prediction_time"):
+            predict_one(trained_bundle, raw_frame, "not-a-timestamp")
+
 
 class TestBacktestAndSelection:
     def test_backtest_runs_all_models_and_folds(self, raw_frame, cfg):

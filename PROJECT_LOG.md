@@ -3,6 +3,47 @@
 > บันทึกว่าทำอะไรไปบ้าง ตัดสินใจอะไร เพราะอะไร และจะไปต่ออย่างไร
 > อ้างอิงแผนจาก `02_energy_forecasting_ai_engineering_plan.docx` (v1.0)
 
+## 2026-07-18 (ต่อ) — Push GitHub + รัน notebook จบ (Definition of Done ครบ)
+
+### สิ่งที่ทำ
+1. **Push ขึ้น GitHub** [Sayomphon/Energy_Forecasting](https://github.com/Sayomphon/Energy_Forecasting)
+   (public) — merge กับ initial commit เดิมแบบ `--allow-unrelated-histories`
+   เก็บ LICENSE (Apache 2.0) ของ repo และใช้ README ฉบับเต็ม; แก้ license
+   references ในโค้ดจาก MIT → Apache 2.0 ให้ตรงกัน; history สะอาดไม่ force push
+2. **รัน notebook แบบ Restart & Run All** ด้วย `nbconvert --execute` ในเครื่อง
+   (MacBook, CPU) — 19 cells รันครบตามลำดับ 1→19, **0 error**, ฝังกราฟ 4 รูป
+
+### 🐛 บั๊กที่เจอจากการรัน notebook (CLI ไม่เจอ — นี่คือคุณค่าของ Run-all gate)
+`predict_one()` ใช้ `pd.Timestamp(prediction_time)` ตรงๆ ซึ่ง parse timestamp
+รูปแบบ UCI ที่ไม่มีช่องว่าง (`2016-05-2718:00:00`) ไม่ได้ → section 14 (robustness)
+ที่ส่ง `raw["date"].iloc[-1]` (raw string) เข้าไป crash
+
+**แก้ที่ source (ไม่ใช่แค่ notebook)**: เปลี่ยนไปใช้ `parse_timestamps()` ตัวเดียว
+กับ pipeline ที่เหลือ → `predict_one` รับได้ทั้ง Timestamp, ISO string และ
+UCI no-space string; เพิ่ม regression tests 3 ข้อ (ISO / UCI-format / unparseable)
+→ รวมเป็น **55 tests ผ่านหมด** หลักการ "parse timestamp ที่เดียว" ตอนนี้ครอบคลุม
+inference boundary ด้วย
+
+### ✅ Definition of Done (บทที่ 13) + Final run checklist — ครบทุกข้อ
+- Restart & Run all สำเร็จ ✅
+- split/feature schema deterministic ตาม seed/version ✅
+- model artifact reload → prediction สอดคล้อง (มี identity check ใน notebook) ✅
+- ไม่มี secret/PII/dataset ที่ redistribute ไม่ได้ ✅
+- **README / notebook / model card ใช้ตัวเลข metric จาก run เดียวกัน** ✅
+  (notebook test_metrics ตรง bit-for-bit กับ `artifacts/test_metrics.json`:
+  MAE 34.038… / peak MAE 220.44… / n=2938)
+
+### เครื่องที่ใช้รัน
+รันในเครื่อง (CPU) จบใน ~30 วินาที ไม่ต้องใช้ Colab — dataset 19,735 แถว/~12MB
++ โมเดล Ridge/HGB เบามาก RAM ใช้ไม่ถึง 1GB
+
+### ขั้นถัดไป (optional / stretch — บทที่ 12)
+- [ ] GitHub Actions CI (pytest + ruff อัตโนมัติ)
+- [ ] Feature set v2: ตัด weather/sensor block ตามผล ablation แล้ว backtest ซ้ำ
+- [ ] Quantile/conformal intervals, peak-event classifier, FastAPI endpoint
+
+---
+
 ## 2026-07-18 — ขึ้นโปรเจคครั้งแรก (v1.0.0)
 
 ### สรุปผลลัพธ์
@@ -11,8 +52,8 @@
 |---|---|
 | โครงสร้างโปรเจค + tooling (pyproject, ruff config, .gitignore, git) | ✅ |
 | Library code 9 โมดูล (`src/energy_forecasting/`) | ✅ |
-| Unit tests **52 ข้อ ผ่านทั้งหมด** (เน้น temporal correctness) | ✅ |
-| Notebook 19 sections ตาม blueprint บทที่ 5 ของ docx | ✅ |
+| Unit tests **55 ข้อ ผ่านทั้งหมด** (เน้น temporal correctness) | ✅ |
+| Notebook 19 sections + รัน Restart & Run All จบ 0 error (มีกราฟฝัง) | ✅ |
 | เอกสาร README / model card / บันทึกนี้ | ✅ |
 | รัน pipeline จริงกับ UCI dataset จบ end-to-end + ตรวจ inference จาก bundle | ✅ |
 

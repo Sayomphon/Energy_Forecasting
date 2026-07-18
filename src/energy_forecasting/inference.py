@@ -132,7 +132,12 @@ def predict_one(
         quality_flag, fallback_used, model_version.
     """
     cfg = bundle.config
-    t = pd.Timestamp(prediction_time)
+    # Parse through the same helper as the rest of the pipeline so a caller may
+    # pass a Timestamp, an ISO string, or the source's no-space format — timestamp
+    # parsing lives in exactly one place.
+    t = parse_timestamps(pd.Series([prediction_time])).iloc[0]
+    if pd.isna(t):
+        raise ValueError(f"Unparseable prediction_time: {prediction_time!r}")
 
     def _contract(value: float, flag: str, fallback: bool) -> "dict":
         return {

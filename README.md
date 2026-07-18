@@ -100,7 +100,7 @@ Reproduce everything with `python -m energy_forecasting.train --fetch`.
 │   ├── inference.py          # bundle save/load (sha256) + forecast contract
 │   └── train.py              # end-to-end CLI
 ├── notebooks/energy_1h_forecast.ipynb   # 19-section narrative notebook
-├── tests/                    # 52 tests — temporal correctness is CI-enforced
+├── tests/                    # 55 tests — temporal correctness is CI-enforced
 ├── artifacts/                # generated: bundle, configs, metrics, reports
 ├── docs/model_card.md
 └── PROJECT_LOG.md            # build log (Thai)
@@ -110,7 +110,7 @@ Reproduce everything with `python -m energy_forecasting.train --fetch`.
 
 ```bash
 pip install -e ".[dev]"
-pytest                                     # 52 tests
+pytest                                     # 55 tests
 python -m energy_forecasting.train --fetch # downloads UCI data once (~12 MB), trains, packages
 ```
 
