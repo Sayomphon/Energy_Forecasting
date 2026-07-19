@@ -71,16 +71,17 @@ def main(argv=None) -> int:
         fetch_raw(args.data_dir)
     raw = load_raw(args.data_dir)
     report = validate_contract(raw, cfg)
-    (artifacts / "data_contract_report.json").write_text(
-        json.dumps(report.to_dict(), indent=2)
-    )
+    (artifacts / "data_contract_report.json").write_text(json.dumps(report.to_dict(), indent=2))
     if not report.passed:
         logger.error("Data contract FAILED: %s", report.failures)
         return 1
     logger.info(
         "Contract OK: %d rows, %s -> %s, %d gaps, %d duplicate timestamps",
-        report.n_rows, report.time_min, report.time_max,
-        report.n_gaps, report.n_duplicate_timestamps,
+        report.n_rows,
+        report.time_min,
+        report.time_max,
+        report.n_gaps,
+        report.n_duplicate_timestamps,
     )
 
     # --- 2. Target + features ----------------------------------------------
@@ -88,7 +89,9 @@ def main(argv=None) -> int:
     frame, feature_cols = add_features(base, cfg)
     logger.info(
         "Features: %d columns, %d rows (%d dropped for insufficient history)",
-        len(feature_cols), len(frame), frame.attrs["rows_dropped_insufficient_history"],
+        len(feature_cols),
+        len(frame),
+        frame.attrs["rows_dropped_insufficient_history"],
     )
 
     X = frame[feature_cols]
@@ -106,8 +109,12 @@ def main(argv=None) -> int:
     # --- 4. Backtest all models ---------------------------------------------
     factories = model_factories(cfg)
     results = run_backtest(
-        X.iloc[:n_trainval], y.iloc[:n_trainval], ts.iloc[:n_trainval],
-        folds, factories, cfg,
+        X.iloc[:n_trainval],
+        y.iloc[:n_trainval],
+        ts.iloc[:n_trainval],
+        folds,
+        factories,
+        cfg,
     )
     results.to_csv(artifacts / "backtest_metrics.csv", index=False)
     summary = summarize_backtest(results)
@@ -126,15 +133,20 @@ def main(argv=None) -> int:
             "rolling_stats": [c for c in feature_cols if c.startswith("roll_")],
             "calendar": ["hour_sin", "hour_cos", "dow_sin", "dow_cos", "is_weekend"],
             "weather_sensors": [
-                c for c in feature_cols
+                c
+                for c in feature_cols
                 if c not in {"load_now", "seasonal_ref"}
                 and not c.startswith(("lag_", "roll_", "hour_", "dow_", "is_weekend", "rv"))
             ],
             "negative_controls": [c for c in feature_cols if c in ("rv1", "rv2")],
         }
         ablation = ablation_delta(
-            X.iloc[:n_trainval], y.iloc[:n_trainval], folds,
-            factories[selected], cfg, groups,
+            X.iloc[:n_trainval],
+            y.iloc[:n_trainval],
+            folds,
+            factories[selected],
+            cfg,
+            groups,
         )
         ablation.to_csv(artifacts / "ablation_results.csv", index=False)
         logger.info("Ablation:\n%s", ablation.to_string(index=False))

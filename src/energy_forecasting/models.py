@@ -77,7 +77,7 @@ def make_hgb(cfg: ForecastConfig) -> HistGradientBoostingRegressor:
     )
 
 
-def model_factories(cfg: ForecastConfig) -> "dict":
+def model_factories(cfg: ForecastConfig) -> dict:
     """Ordered registry used by the backtest runner (baselines first)."""
     return {
         "last_value": lambda: make_last_value(),

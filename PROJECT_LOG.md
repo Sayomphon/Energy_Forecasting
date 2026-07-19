@@ -3,6 +3,53 @@
 > บันทึกว่าทำอะไรไปบ้าง ตัดสินใจอะไร เพราะอะไร และจะไปต่ออย่างไร
 > อ้างอิงแผนจาก `02_energy_forecasting_ai_engineering_plan.docx` (v1.0)
 
+## 2026-07-19 — GitHub Actions CI: Phase 0 + workflow (stretch goal #1)
+
+ทำตามแผน `docs/CI_PLAN.md` — quality gate อัตโนมัติที่ทำให้คำใน README
+("temporal correctness is CI-enforced") เป็นจริง งานทั้งหมดเสร็จในเครื่องแล้ว
+**ยังไม่ push** (รอสั่ง)
+
+### สิ่งที่ทำ
+1. **Phase 0 — รัน ruff จริงครั้งแรก** (ก่อนหน้านี้เขียนโค้ดตามกฎ ruff ในใจ แต่ยังไม่เคยรัน):
+   - `ruff check .` เจอ **27 findings** auto-fixable ทั้งหมด → `--fix`:
+     - **UP037** (เยอะสุด): ลบ quotes ที่เกินจำเป็นออกจาก type annotation
+       (`folds: "list"` → `folds: list`, `-> "dict"` → `-> dict`) — ปลอดภัยเพราะทุกไฟล์
+       มี `from __future__ import annotations` อยู่แล้ว (annotation เป็น lazy string
+       ทั้งหมด ไม่ evaluate runtime แม้ `pd.Timestamp | str` บน py3.9)
+     - **F401**: `import json` (inference.py) + `Path`/`numpy` (notebook) ที่ไม่ถูกใช้ → ลบ
+       (verify แล้วว่าไม่มี usage จริงในทุก cell ของ notebook)
+     - **E401/I001**: แยก multi-import + จัด import order (notebook bootstrap cell)
+   - `ruff format .` จัด 10 ไฟล์ (line-wrap ของ function args เป็นหลัก) — review diff แล้ว
+     ไม่แตะ logic; ยืนยัน dict comprehension ใน `load_bundle` + compileall ผ่าน
+   - **Exit criteria ผ่านครบ**: `ruff check` = All checks passed! · `ruff format --check`
+     = 15 files already formatted · `pytest` = **55 passed**
+
+### 🔍 ข้อค้นพบ: pytest ค้าง 2 นาทีบน macOS — OpenMP thread oversubscription
+pytest บนเครื่อง (macOS หลาย core) กิน CPU 559% (~5.6 cores) เพราะ
+`HistGradientBoosting` เปิด OpenMP threads เต็มจำนวน core ทุกครั้งที่ train
+(fixture `trained_bundle` function-scope × ~9 tests + backtest 4 models × 3 folds)
+→ dataset เล็ก (2016 แถว) แต่ overhead ของ thread sync มากกว่าตัว compute
+
+- **ไม่ใช่ bug / ไม่ใช่ network** — grep ยืนยัน tests ไม่แตะ network เลย (offline จริง)
+- **แก้ที่การรัน local**: `OMP_NUM_THREADS=1` (+OPENBLAS/VECLIB/MKL) → **55 tests / ~10 วินาที**
+- **CI (Linux ubuntu-latest, 2 core) ไม่เจอปัญหานี้** — จึงไม่ต้องใส่ env var ใน workflow;
+  acceptance "< 3 นาที" ทำได้สบายบน CI
+
+### ไฟล์ที่สร้าง / แก้
+- **สร้าง** `.github/workflows/ci.yml` — 2 jobs: `lint` (ruff check + format, py3.11)
+  → `test` (`needs: lint`, matrix py3.9–3.12, `fail-fast: false`); trigger push/PR (main)
+  + `workflow_dispatch`; `concurrency.cancel-in-progress`; `permissions: contents: read`;
+  cache pip; pin actions `@v4`/`@v5` (YAML validate ผ่าน)
+- **README.md** — เพิ่ม CI badge ใต้ heading หลัก
+- **docs/CI_PLAN.md** — status → implemented (local) + tick acceptance criteria
+- **แก้จาก ruff**: src 8 ไฟล์ + tests 3 ไฟล์ + notebook (แค่ imports/format ไม่แตะ logic)
+
+### ขั้นถัดไป (รอสั่ง)
+- [ ] Push branch (`ci/github-actions`) + เปิด PR → ดู CI เขียวครบ 4 versions บน GitHub
+- [ ] Merge → badge เปลี่ยนเป็น passing → ปิด `[~]` ใน CI_PLAN ให้ครบ
+
+---
+
 ## 2026-07-18 (ต่อ) — Push GitHub + รัน notebook จบ (Definition of Done ครบ)
 
 ### สิ่งที่ทำ

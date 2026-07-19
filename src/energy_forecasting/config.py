@@ -77,7 +77,7 @@ class ForecastConfig:
         path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
 
     @classmethod
-    def from_json(cls, path: Path) -> "ForecastConfig":
+    def from_json(cls, path: Path) -> ForecastConfig:
         raw = json.loads(Path(path).read_text())
         field_names = {f.name for f in dataclasses.fields(cls)}
         kwargs = {k: v for k, v in raw.items() if k in field_names}

@@ -33,7 +33,7 @@ def steps_per_day(cfg: ForecastConfig) -> int:
     return (24 * 60) // cfg.sampling_minutes
 
 
-def add_features(df: pd.DataFrame, cfg: ForecastConfig) -> "tuple[pd.DataFrame, list]":
+def add_features(df: pd.DataFrame, cfg: ForecastConfig) -> tuple[pd.DataFrame, list]:
     """Attach all model features to a time-sorted frame.
 
     Args:
@@ -121,7 +121,7 @@ def add_features(df: pd.DataFrame, cfg: ForecastConfig) -> "tuple[pd.DataFrame, 
     return out, feature_cols
 
 
-def availability_audit(feature_cols: "list", cfg: ForecastConfig) -> pd.DataFrame:
+def availability_audit(feature_cols: list, cfg: ForecastConfig) -> pd.DataFrame:
     """Human-readable audit: which timestamps feed each feature.
 
     Evidence table for the leakage-analysis notebook section — every feature

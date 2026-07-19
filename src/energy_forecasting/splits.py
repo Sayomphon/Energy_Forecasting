@@ -37,7 +37,7 @@ def chronological_split(n_rows: int, cfg: ForecastConfig) -> SplitIndices:
     )
 
 
-def expanding_window_folds(n_rows_train_val: int, cfg: ForecastConfig) -> "list":
+def expanding_window_folds(n_rows_train_val: int, cfg: ForecastConfig) -> list:
     """Expanding-window folds inside the train+val region.
 
     The region is cut into ``n_backtest_folds + 1`` equal blocks: fold i
@@ -52,9 +52,7 @@ def expanding_window_folds(n_rows_train_val: int, cfg: ForecastConfig) -> "list"
         raise ValueError("n_backtest_folds must be >= 1")
     block = n_rows_train_val // (k + 1)
     if block < 1:
-        raise ValueError(
-            f"Region of {n_rows_train_val} rows too small for {k} folds"
-        )
+        raise ValueError(f"Region of {n_rows_train_val} rows too small for {k} folds")
     folds = []
     for i in range(1, k + 1):
         train_idx = np.arange(0, i * block)
@@ -82,7 +80,7 @@ def assert_temporal_order(
 
 def backtest_calendar(
     timestamps: pd.Series,
-    folds: "list",
+    folds: list,
 ) -> pd.DataFrame:
     """Summarise each fold's coverage for reporting (docx section 07)."""
     ts = pd.Series(timestamps).reset_index(drop=True)

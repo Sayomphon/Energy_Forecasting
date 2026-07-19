@@ -36,9 +36,11 @@ class TestChronologicalSplit:
         assert_temporal_order(ts, split)  # must not raise
 
     def test_temporal_order_guard_catches_shuffled_time(self, cfg):
-        ts = pd.Series(
-            pd.date_range("2024-01-01", periods=1000, freq="10min")
-        ).sample(frac=1.0, random_state=0).reset_index(drop=True)
+        ts = (
+            pd.Series(pd.date_range("2024-01-01", periods=1000, freq="10min"))
+            .sample(frac=1.0, random_state=0)
+            .reset_index(drop=True)
+        )
         split = chronological_split(1000, cfg)
         with pytest.raises(AssertionError):
             assert_temporal_order(ts, split)

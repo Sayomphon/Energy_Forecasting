@@ -78,9 +78,7 @@ class TestPastOnlyFeatures:
         frame, _ = add_features(base, cfg)
         row = frame.iloc[400]
         target_time = row["date"] + pd.Timedelta(minutes=cfg.horizon_minutes)
-        expected = (
-            base.set_index("date")["Appliances"].loc[target_time - pd.Timedelta(hours=24)]
-        )
+        expected = base.set_index("date")["Appliances"].loc[target_time - pd.Timedelta(hours=24)]
         assert row["seasonal_ref"] == expected
 
     def test_no_nans_in_feature_matrix(self, raw_frame, cfg):

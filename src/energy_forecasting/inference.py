@@ -14,7 +14,6 @@ Security notes
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,12 +36,12 @@ class ForecastBundle:
     """Everything inference needs, saved and loaded as one unit."""
 
     model: object
-    feature_columns: "list"
+    feature_columns: list
     config: ForecastConfig
     model_version: str
     trained_at: str  # ISO timestamp recorded by the training run
     train_data_sha256: str = ""
-    metrics: "dict" = None
+    metrics: dict = None
 
 
 def _sha256_bytes(path: Path) -> str:
@@ -102,10 +101,12 @@ def load_bundle(path: Path, allow_unverified: bool = False) -> ForecastBundle:
     return ForecastBundle(
         model=raw["model"],
         feature_columns=raw["feature_columns"],
-        config=ForecastConfig(**{
-            k: tuple(v) if k in ("lags", "rolling_windows") else v
-            for k, v in raw["config"].items()
-        }),
+        config=ForecastConfig(
+            **{
+                k: tuple(v) if k in ("lags", "rolling_windows") else v
+                for k, v in raw["config"].items()
+            }
+        ),
         model_version=raw["model_version"],
         trained_at=raw["trained_at"],
         train_data_sha256=raw.get("train_data_sha256", ""),
@@ -116,8 +117,8 @@ def load_bundle(path: Path, allow_unverified: bool = False) -> ForecastBundle:
 def predict_one(
     bundle: ForecastBundle,
     history: pd.DataFrame,
-    prediction_time: "pd.Timestamp | str",
-) -> "dict":
+    prediction_time: pd.Timestamp | str,
+) -> dict:
     """Produce one forecast following the inference contract (docx section 9).
 
     Args:
@@ -139,7 +140,7 @@ def predict_one(
     if pd.isna(t):
         raise ValueError(f"Unparseable prediction_time: {prediction_time!r}")
 
-    def _contract(value: float, flag: str, fallback: bool) -> "dict":
+    def _contract(value: float, flag: str, fallback: bool) -> dict:
         return {
             "prediction_time": t.isoformat(),
             "target_time": (t + pd.Timedelta(minutes=cfg.horizon_minutes)).isoformat(),
@@ -176,7 +177,8 @@ def predict_one(
     if len(hist) < cfg.min_history_steps:
         logger.warning(
             "Only %d rows of history (<%d); using last-value fallback",
-            len(hist), cfg.min_history_steps,
+            len(hist),
+            cfg.min_history_steps,
         )
         return _contract(last_value, "insufficient_history_fallback", True)
 
