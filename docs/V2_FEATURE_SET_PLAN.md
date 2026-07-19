@@ -128,7 +128,7 @@ if cfg.include_sensor_features:   # v1 เท่านั้น
 - [x] Backtest v1 vs v2 เทียบ fair (folds/selection เดียวกัน) — ตารางใน PROJECT_LOG + `feature_set_comparison.csv`
 - [x] ตัดสินตามเกณฑ์ §3.2 **ที่ตั้งไว้ก่อนรัน**; test เปิดครั้งเดียว → **v2 ชนะ, promoted**
 - [x] PROJECT_LOG + README + model card อัปเดตด้วยผลจริง (v2 ชนะ → promote v2)
-- [ ] ผ่าน CI บน PR ← จะ tick หลัง PR CI เขียว
+- [x] ผ่าน CI บน PR — [PR #2](https://github.com/Sayomphon/Energy_Forecasting/pull/2) เขียวครบ (lint + tests py3.9–3.12)
 
 ---
 
