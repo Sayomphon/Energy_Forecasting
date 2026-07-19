@@ -54,6 +54,12 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--artifacts-dir", type=Path, default=ARTIFACTS_DIR)
     p.add_argument("--fetch", action="store_true", help="Download the dataset if not cached.")
     p.add_argument("--no-ablation", action="store_true", help="Skip feature-ablation runs.")
+    p.add_argument(
+        "--feature-set",
+        choices=("v1", "v2"),
+        default="v1",
+        help="v1 = full sensor set (default); v2 = lean recent-load + calendar set.",
+    )
     return p.parse_args(argv)
 
 
@@ -62,7 +68,11 @@ def main(argv=None) -> int:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
-    cfg = ForecastConfig()
+    # v2 (lean) artifacts carry their own model_version so a promoted bundle is
+    # unambiguous; v1 keeps the original identifier for reproducibility.
+    model_version = "energy-1h-v2" if args.feature_set == "v2" else "energy-1h-v1"
+    cfg = ForecastConfig(feature_set=args.feature_set, model_version=model_version)
+    logger.info("Feature set: %s (model_version=%s)", cfg.feature_set, cfg.model_version)
     artifacts = Path(args.artifacts_dir)
     artifacts.mkdir(parents=True, exist_ok=True)
 
@@ -140,6 +150,9 @@ def main(argv=None) -> int:
             ],
             "negative_controls": [c for c in feature_cols if c in ("rv1", "rv2")],
         }
+        # In the lean v2 set the weather/indoor group is empty (already dropped);
+        # skip empty groups so ablation never reports a trivial zero-delta row.
+        groups = {name: cols for name, cols in groups.items() if cols}
         ablation = ablation_delta(
             X.iloc[:n_trainval],
             y.iloc[:n_trainval],

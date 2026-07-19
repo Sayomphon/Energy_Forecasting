@@ -23,10 +23,15 @@ import pandas as pd
 
 from energy_forecasting.config import ForecastConfig
 
-# Raw sensor columns that are observed at time t and may be used as-is.
-# rv1/rv2 are random noise kept deliberately as negative controls: if a model
-# ranks them highly important, it is fitting noise.
+# Columns never turned into raw contemporaneous features (the timestamp is the
+# index, not a signal).
 CONTEMPORANEOUS_EXCLUDE = ("date",)
+
+# rv1/rv2 are random noise kept deliberately as negative controls: if a model
+# ranks them highly important, it is fitting noise. They survive into the lean
+# v2 set as well, so the negative-control check stays valid in every backtest;
+# they are dropped only when packaging a production-clean bundle.
+NEGATIVE_CONTROL_COLS = ("rv1", "rv2")
 
 
 def steps_per_day(cfg: ForecastConfig) -> int:
@@ -39,7 +44,8 @@ def add_features(df: pd.DataFrame, cfg: ForecastConfig) -> tuple[pd.DataFrame, l
     Args:
         df: Output of :func:`energy_forecasting.data.prepare_base` (sorted,
             de-duplicated, may or may not contain the label column).
-        cfg: Temporal configuration shared with inference.
+        cfg: Temporal + feature-set configuration shared with inference.
+            ``cfg.feature_set`` selects the full v1 or the lean v2 column set.
 
     Returns:
         ``(frame, feature_cols)`` where ``frame`` keeps timestamp/label columns
@@ -86,28 +92,36 @@ def add_features(df: pd.DataFrame, cfg: ForecastConfig) -> tuple[pd.DataFrame, l
     out["is_weekend"] = (dow >= 5).astype(int)
     feature_cols += ["hour_sin", "hour_cos", "dow_sin", "dow_cos", "is_weekend"]
 
-    # --- Indoor/outdoor state observed at t --------------------------------
-    indoor_t = [c for c in out.columns if c.startswith("T") and c[1:].isdigit()]
-    indoor_rh = [c for c in out.columns if c.startswith("RH_") and c[3:].isdigit()]
-    if indoor_t:
-        out["indoor_T_mean"] = out[indoor_t].mean(axis=1)
-        feature_cols.append("indoor_T_mean")
-        if "T_out" in out.columns:
-            out["diff_T_in_out"] = out["indoor_T_mean"] - out["T_out"]
-            feature_cols.append("diff_T_in_out")
-    if indoor_rh:
-        out["indoor_RH_mean"] = out[indoor_rh].mean(axis=1)
-        feature_cols.append("indoor_RH_mean")
-        if "RH_out" in out.columns:
-            out["diff_RH_in_out"] = out["indoor_RH_mean"] - out["RH_out"]
-            feature_cols.append("diff_RH_in_out")
+    # --- Indoor/outdoor state observed at t (v1 only) ----------------------
+    # The lean v2 set drops these aggregates along with every raw sensor:
+    # ablation suggested the weather/indoor block adds variance rather than
+    # 1h-ahead signal (see docs/V2_FEATURE_SET_PLAN.md).
+    if cfg.include_sensor_features:
+        indoor_t = [c for c in out.columns if c.startswith("T") and c[1:].isdigit()]
+        indoor_rh = [c for c in out.columns if c.startswith("RH_") and c[3:].isdigit()]
+        if indoor_t:
+            out["indoor_T_mean"] = out[indoor_t].mean(axis=1)
+            feature_cols.append("indoor_T_mean")
+            if "T_out" in out.columns:
+                out["diff_T_in_out"] = out["indoor_T_mean"] - out["T_out"]
+                feature_cols.append("diff_T_in_out")
+        if indoor_rh:
+            out["indoor_RH_mean"] = out[indoor_rh].mean(axis=1)
+            feature_cols.append("indoor_RH_mean")
+            if "RH_out" in out.columns:
+                out["diff_RH_in_out"] = out["indoor_RH_mean"] - out["RH_out"]
+                feature_cols.append("diff_RH_in_out")
 
-    # Raw contemporaneous sensors (weather, per-room readings, lights,
-    # negative controls). The raw target column is excluded: it already
-    # enters as load_now.
+    # Raw contemporaneous sensors (weather, per-room readings, lights) plus the
+    # rv1/rv2 negative controls. The raw target column is excluded: it already
+    # enters as load_now. In the lean v2 set only the negative controls survive
+    # — every real sensor column is skipped, so the set no longer depends on the
+    # weather/indoor feed while still carrying the negative-control check.
     skip = set(feature_cols) | {cfg.target_source_col, cfg.target_col, *CONTEMPORANEOUS_EXCLUDE}
     for col in out.columns:
         if col in skip or col == cfg.timestamp_col:
+            continue
+        if not cfg.include_sensor_features and col not in NEGATIVE_CONTROL_COLS:
             continue
         if pd.api.types.is_numeric_dtype(out[col]):
             feature_cols.append(col)
