@@ -48,7 +48,7 @@ def evaluate_all(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     peak_threshold: float,
-) -> "dict":
+) -> dict:
     return {
         "mae": mae(y_true, y_pred),
         "rmse": rmse(y_true, y_pred),
@@ -64,7 +64,7 @@ def slice_errors(
     timestamps: pd.Series,
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    train_quartiles: "list",
+    train_quartiles: list,
 ) -> pd.DataFrame:
     """Per-slice MAE/bias: hour of day, weekday/weekend, and load quartile.
 
@@ -108,13 +108,11 @@ def residual_summary(
     y_pred: np.ndarray,
     peak_threshold: float,
     max_acf_lag: int = 12,
-) -> "dict":
+) -> dict:
     """Compact residual diagnostics for residual_summary.json."""
     resid = np.asarray(y_true) - np.asarray(y_pred)
     resid_s = pd.Series(resid)
-    acf = {
-        f"lag_{k}": float(resid_s.autocorr(lag=k)) for k in (1, 2, 3, 6, max_acf_lag)
-    }
+    acf = {f"lag_{k}": float(resid_s.autocorr(lag=k)) for k in (1, 2, 3, 6, max_acf_lag)}
     return {
         "n_obs": int(len(resid)),
         "period_start": str(pd.Series(timestamps).min()),

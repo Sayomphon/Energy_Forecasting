@@ -129,8 +129,12 @@ class TestBacktestAndSelection:
         n = int(len(frame) * 0.85)
         folds = expanding_window_folds(n, cfg)
         results = run_backtest(
-            frame[cols].iloc[:n], frame[cfg.target_col].iloc[:n],
-            frame["date"].iloc[:n], folds, model_factories(cfg), cfg,
+            frame[cols].iloc[:n],
+            frame[cfg.target_col].iloc[:n],
+            frame["date"].iloc[:n],
+            folds,
+            model_factories(cfg),
+            cfg,
         )
         assert len(results) == 4 * cfg.n_backtest_folds
         assert (results["val_start"] > results["train_end"]).all()
@@ -142,8 +146,12 @@ class TestBacktestAndSelection:
         n = int(len(frame) * 0.85)
         folds = expanding_window_folds(n, cfg)
         results = run_backtest(
-            frame[cols].iloc[:n], frame[cfg.target_col].iloc[:n],
-            frame["date"].iloc[:n], folds, model_factories(cfg), cfg,
+            frame[cols].iloc[:n],
+            frame[cfg.target_col].iloc[:n],
+            frame["date"].iloc[:n],
+            folds,
+            model_factories(cfg),
+            cfg,
         )
         decision = select_model(results)
         assert decision["selected"] in {"last_value", "seasonal_naive", "ridge", "hgb"}

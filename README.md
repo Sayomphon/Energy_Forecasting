@@ -1,5 +1,7 @@
 # Smart Building Energy Forecasting — One-Hour-Ahead Load Forecast
 
+[![CI](https://github.com/Sayomphon/Energy_Forecasting/actions/workflows/ci.yml/badge.svg)](https://github.com/Sayomphon/Energy_Forecasting/actions/workflows/ci.yml)
+
 Time-series ML that predicts appliance energy use **60 minutes ahead** from
 10-minute smart-home readings, engineered the way forecasting has to be
 engineered: **leakage-safe features, chronological backtesting, naive baselines

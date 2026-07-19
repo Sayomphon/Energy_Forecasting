@@ -122,6 +122,7 @@ def load_raw(data_dir: Path, verify_hash: bool = True) -> pd.DataFrame:
 # Data contract
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DataContractReport:
     """Outcome of the pre-training data contract checks (docx section 3)."""

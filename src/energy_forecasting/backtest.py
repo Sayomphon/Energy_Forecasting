@@ -32,8 +32,8 @@ def run_backtest(
     X: pd.DataFrame,
     y: pd.Series,
     timestamps: pd.Series,
-    folds: "list",
-    factories: "dict",
+    folds: list,
+    factories: dict,
     cfg: ForecastConfig,
 ) -> pd.DataFrame:
     """Score every model on every expanding-window fold.
@@ -82,7 +82,11 @@ def run_backtest(
             rows.append(row)
             logger.info(
                 "%s fold %d: MAE=%.2f WAPE=%.3f peak_MAE=%.2f",
-                name, fold_id, row["mae"], row["wape"], row["peak_mae"],
+                name,
+                fold_id,
+                row["mae"],
+                row["wape"],
+                row["peak_mae"],
             )
     return pd.DataFrame(rows)
 
@@ -109,8 +113,8 @@ def summarize_backtest(results: pd.DataFrame) -> pd.DataFrame:
 
 def select_model(
     results: pd.DataFrame,
-    baseline_names: "tuple" = ("last_value", "seasonal_naive"),
-) -> "dict":
+    baseline_names: tuple = ("last_value", "seasonal_naive"),
+) -> dict:
     """Apply the docx selection rule.
 
     A candidate is eligible only if it beats **every** baseline on MAE in a
@@ -139,8 +143,7 @@ def select_model(
     if not eligible:
         # Honest failure mode: no candidate justified its complexity.
         fallback = (
-            results[results["model"].isin(baseline_names)]
-            .groupby("model")["mae"].mean().idxmin()
+            results[results["model"].isin(baseline_names)].groupby("model")["mae"].mean().idxmin()
         )
         return {"selected": fallback, "reason": "no candidate beat baselines", "audit": audit}
 
@@ -164,16 +167,17 @@ def select_model(
 def ablation_delta(
     X: pd.DataFrame,
     y: pd.Series,
-    folds: "list",
+    folds: list,
     factory,
     cfg: ForecastConfig,
-    feature_groups: "dict",
+    feature_groups: dict,
 ) -> pd.DataFrame:
     """Feature-ablation runs: drop one group, measure the MAE delta.
 
     ``feature_groups`` maps group name -> list of columns to remove. A near-zero
     (or negative) delta for the negative-control group is the expected result.
     """
+
     def _mean_mae(cols) -> float:
         maes = []
         for train_idx, val_idx in folds:
@@ -189,8 +193,6 @@ def ablation_delta(
     for group, cols in feature_groups.items():
         kept = [c for c in full_cols if c not in set(cols)]
         m = _mean_mae(kept)
-        rows.append(
-            {"ablation": f"drop_{group}", "mean_mae": m, "delta_vs_full": m - base_mae}
-        )
+        rows.append({"ablation": f"drop_{group}", "mean_mae": m, "delta_vs_full": m - base_mae})
     _ = cfg
     return pd.DataFrame(rows)
