@@ -1,7 +1,7 @@
 # แผนงาน: Feature Set v2 (lean) — ขับด้วย ablation
 
 > Stretch goal #2 — ปรับ feature set ตามหลักฐาน ablation แล้วพิสูจน์ด้วย controlled experiment
-> สถานะ: **planned** (ยังไม่ implement) · ประเมินเวลา: ~1–1.5 ชม. · อ้างอิง: `artifacts/ablation_results.csv`
+> สถานะ: **done** — v2 ผ่านเกณฑ์ §3.2 ทั้งสองข้อ → promoted เป็น `energy-1h-v2` (2026-07-19) · อ้างอิง: `artifacts/feature_set_comparison.csv`, `PROJECT_LOG.md` · ดูผลจริงท้ายเอกสาร
 
 ---
 
@@ -122,13 +122,13 @@ if cfg.include_sensor_features:   # v1 เท่านั้น
 ---
 
 ## 7. Acceptance criteria (Definition of Done)
-- [ ] `config.feature_set` toggle + serialize ทำงาน; v1 เป็น default ที่ backward-compatible
-- [ ] `add_features` เคารพ toggle; v2 ตัด sensor block จริง (พิสูจน์ด้วย test)
-- [ ] Tests ใหม่ผ่าน + ชุดเดิม 55 ข้อไม่ regress (v1 เหมือนเดิม bit-for-bit)
-- [ ] Backtest v1 vs v2 เทียบ fair (folds/selection เดียวกัน) — มีตารางผล
-- [ ] ตัดสินตามเกณฑ์ §3.2 **ที่ตั้งไว้ก่อนรัน**; test เปิดครั้งเดียว
-- [ ] PROJECT_LOG + README + model card อัปเดตด้วยผลจริง (ชนะ→promote v2 / ไม่ชนะ→รายงานตรงๆ เก็บ v1)
-- [ ] ผ่าน CI บน PR
+- [x] `config.feature_set` toggle + serialize ทำงาน; v1 เป็น default ที่ backward-compatible
+- [x] `add_features` เคารพ toggle; v2 ตัด sensor block จริง (พิสูจน์ด้วย test)
+- [x] Tests ใหม่ผ่าน + ชุดเดิม 55 ข้อไม่ regress (v1 เหมือนเดิม bit-for-bit) — รวม **64 tests** ผ่าน
+- [x] Backtest v1 vs v2 เทียบ fair (folds/selection เดียวกัน) — ตารางใน PROJECT_LOG + `feature_set_comparison.csv`
+- [x] ตัดสินตามเกณฑ์ §3.2 **ที่ตั้งไว้ก่อนรัน**; test เปิดครั้งเดียว → **v2 ชนะ, promoted**
+- [x] PROJECT_LOG + README + model card อัปเดตด้วยผลจริง (v2 ชนะ → promote v2)
+- [ ] ผ่าน CI บน PR ← จะ tick หลัง PR CI เขียว
 
 ---
 
@@ -158,3 +158,22 @@ if cfg.include_sensor_features:   # v1 เท่านั้น
 
 ## สรุป
 v2 ไม่ใช่แค่ "ตัดฟีเจอร์ให้ MAE ดีขึ้น" แต่เป็น **controlled experiment ที่ตั้งเกณฑ์ก่อน แล้วตัดสินด้วยหลักฐานจาก validation โดยไม่แตะ test** — ถ้า v2 ชนะก็ได้โมเดลที่ดีขึ้นจริงและเบาลง; ถ้าไม่ชนะก็ได้บทเรียนว่า ablation signal ไม่ generalize ซึ่งมีค่าพอกันในเชิง engineering ทั้งสองผลลัพธ์เอาไปเล่าในสัมภาษณ์ได้
+
+---
+
+## ผลลัพธ์จริง (2026-07-19) — v2 ชนะ, promoted
+
+**ผ่านทั้งสองเกณฑ์ §3.2 → `energy-1h-v2`:**
+
+| | v1 (full, 54) | v2 (lean, 25) | Δ |
+|---|---|---|---|
+| Backtest MAE mean±std | 43.96 ± 8.09 | **40.68 ± 4.18** | **−3.27** (เกณฑ์ ≥1.0 ✅) |
+| Backtest peak MAE mean | 239.0 | 237.9 | −0.45% (เกณฑ์ ≤+5% ✅) |
+| Test MAE (one-shot, n=2,938) | 34.04 | **33.62** | −0.42 (ดีกว่าบน test ด้วย) |
+| Test peak MAE | 220.44 | 220.04 | −0.40 |
+
+- **std ลดเกือบครึ่ง** (8.09→4.18; peak 11.16→4.32) และ fit เร็วขึ้น — ตัด sensor noise → โมเดลนิ่งขึ้น ตรงสมมติฐาน §1
+- **Methodology note**: v2 retrain MAE (40.685) = ablation v1 `drop_weather_sensors` (40.685) **ตรงเป๊ะ** เพราะ `ablation_delta` ในโปรเจคนี้ *refit* บน column subset จริง (ไม่ใช่ zero-out) → ablation signal generalize สู่ full retrain; controlled experiment ยืนยันซ้ำแบบอิสระ + เพิ่มการเช็ค peak/std ที่ ablation ไม่ได้ทำ
+- **ทางต่อ (v3 candidate)**: v2 ablation ชี้ว่า `drop_rolling_stats` ทำ MAE ดีขึ้นอีก −0.63 Wh (ยังไม่ถึงเกณฑ์ 1.0) — คนละ experiment
+
+รายละเอียด: `PROJECT_LOG.md` (entry 2026-07-19), `artifacts/feature_set_comparison.csv`, `scripts/compare_feature_sets.py`

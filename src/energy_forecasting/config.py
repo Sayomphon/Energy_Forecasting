@@ -33,6 +33,11 @@ class ForecastConfig:
         peak_quantile: Train-only quantile that defines "peak load" for peak MAE.
         max_staleness_minutes: At inference, history older than this triggers
             the fallback path instead of a model prediction.
+        model_version: Identifier stamped into the bundle and every forecast.
+        feature_set: Which feature block to build — "v1" = full (weather,
+            per-room and indoor-aggregate sensors), "v2" = lean (recent-load
+            dynamics + calendar + rv1/rv2 negative controls only). v1 is the
+            reproducible default; see docs/V2_FEATURE_SET_PLAN.md.
     """
 
     horizon_steps: int = 6
@@ -49,6 +54,11 @@ class ForecastConfig:
     peak_quantile: float = 0.90
     max_staleness_minutes: int = 30
     model_version: str = "energy-1h-v1"
+    feature_set: str = "v1"
+
+    def __post_init__(self) -> None:
+        if self.feature_set not in ("v1", "v2"):
+            raise ValueError(f"feature_set must be 'v1' or 'v2', got {self.feature_set!r}")
 
     @property
     def horizon_minutes(self) -> int:
@@ -62,6 +72,15 @@ class ForecastConfig:
         need ``window + 1`` steps; lags need ``lag`` steps.
         """
         return max(max(self.lags), max(self.rolling_windows) + 1)
+
+    @property
+    def include_sensor_features(self) -> bool:
+        """Whether raw weather/indoor sensor features are part of the set.
+
+        The lean v2 set drops them, keeping recent-load dynamics, calendar,
+        and the rv1/rv2 negative controls. See docs/V2_FEATURE_SET_PLAN.md.
+        """
+        return self.feature_set == "v1"
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)

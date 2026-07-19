@@ -3,6 +3,73 @@
 > บันทึกว่าทำอะไรไปบ้าง ตัดสินใจอะไร เพราะอะไร และจะไปต่ออย่างไร
 > อ้างอิงแผนจาก `02_energy_forecasting_ai_engineering_plan.docx` (v1.0)
 
+## 2026-07-19 (ต่อ) — Feature set v2 (lean): controlled experiment → promote (stretch #2)
+
+ทำตามแผน `docs/V2_FEATURE_SET_PLAN.md` — ตั้งสมมติฐานจาก ablation v1 ("ตัด
+weather/indoor sensors ทิ้งทั้งกลุ่มแล้ว backtest MAE ดีขึ้น 3.27 Wh") แล้ว
+**พิสูจน์ด้วย controlled experiment ที่ตั้งเกณฑ์ตัดสินก่อนรัน** (กัน hindsight bias)
+
+### สิ่งที่ทำ
+1. **Toggle `feature_set` ใน `ForecastConfig`** (`v1`=full default, `v2`=lean) +
+   property `include_sensor_features` + `__post_init__` validation (รับแค่ `v1`/`v2`)
+   → serialize ลง `feature_config.json` อัตโนมัติผ่าน `to_dict()`
+2. **`add_features` เคารพ toggle**: v2 ตัด indoor/outdoor aggregates + raw sensor
+   loop ทั้งหมด **แต่คง negative controls `rv1`/`rv2` ไว้** (constant
+   `NEGATIVE_CONTROL_COLS`) เพื่อให้ negative-control check ยัง valid ใน backtest →
+   v2 = **25 คอลัมน์** (จาก 54): `load_now` + lag×4 + `seasonal_ref` + roll×12 +
+   calendar×5 + rv1/rv2. v1 code path เดิม **bit-for-bit** (เงื่อนไขใหม่ไม่ trigger)
+3. **`train.py --feature-set {v1,v2}`** + derive `model_version` (v2 →
+   `energy-1h-v2`) + guard ให้ ablation ข้าม group ว่าง (v2 ไม่มี weather เหลือให้ drop)
+4. **Tests +9** (`tests/test_feature_set_v2.py`): v2 ตัด sensor จริง / คง core+calendar /
+   คง rv1/rv2 / เป็น strict subset ของ v1 / v1 ไม่ regress (assert exact ordered list) /
+   anti-leakage (mutate-the-future) ซ้ำบน v2 / config roundtrip / reject feature_set
+   ไม่ถูกต้อง → **รวม 64 tests ผ่านหมด**, ruff check + format สะอาด
+5. **Controlled experiment** (`scripts/compare_feature_sets.py`): รัน v1/v2 บน
+   rows/split/folds/selection **เดียวกันเป๊ะ** (ต่างแค่ feature columns) บน train+val
+   region — **ไม่แตะ test**; เกณฑ์ตัดสิน hardcode ไว้ในสคริปต์ก่อนเห็นผล
+
+### เกณฑ์ตัดสิน (ตั้งก่อนรัน, §3.2)
+v2 promote ก็ต่อเมื่อ **ทั้งสอง**: (1) `mae_mean(v2)` ดีขึ้น ≥ 1.0 Wh **และ**
+(2) `peak_mae_mean(v2)` แย่ลงไม่เกิน 5% (peak เป็นจุดอ่อนอยู่แล้ว ห้ามซ้ำเติม)
+
+### ผล — v2 ชนะทั้ง validation และ test
+**Backtest (3 expanding folds, hgb ชนะ baselines ทั้งคู่):**
+
+| | features | MAE mean±std | WAPE | peak MAE mean±std | fit |
+|---|---|---|---|---|---|
+| v1 (full) | 54 | 43.96 ± 8.09 | 0.453 | 239.0 ± 11.16 | 1.10 s |
+| **v2 (lean)** ✅ | 25 | **40.68 ± 4.18** | 0.419 | 237.9 ± 4.32 | 0.73 s |
+
+- Criterion 1: MAE ดีขึ้น **+3.27 Wh** → **PASS**
+- Criterion 2: peak MAE **−0.45%** (ดีขึ้นเล็กน้อยด้วย) → **PASS**
+- **v2 std ลดลงเกือบครึ่ง** (mae 8.09→4.18, peak 11.16→4.32) — ตรงสมมติฐาน
+  "ตัด sensor noise แล้วโมเดลนิ่งขึ้น" ชัดกว่าที่ตัวเลข ablation บอก และ fit เร็วขึ้น
+
+**Final test (one-shot, n=2,938):** MAE **33.62** (v1: 34.04) · WAPE 0.347 ·
+bias −15.73 · peak MAE **220.04** (v1: 220.44) — v2 ดีกว่า v1 บน test ที่ไม่เคยเห็นด้วย
+
+→ **PROMOTE v2**: `train.py --feature-set v2` เต็ม (เปิด test ครั้งเดียว),
+`model_version=energy-1h-v2`, regenerate `artifacts/` เป็น v2 canonical
+
+### ข้อค้นพบเชิง methodology (สำคัญ)
+- **ablation number generalize เป๊ะ**: v2 retrain MAE = 40.685 = ablation v1
+  `drop_weather_sensors` (40.685) **ตรงทุกหลัก** เพราะ `ablation_delta` ในโปรเจคนี้
+  *refit* บน column subset จริง (`backtest.py`: `model.fit(X[cols]...)`) ไม่ใช่ zero-out
+  → concern ใน §3 ("ablation ≠ retrain") จึงไม่เกิดที่นี่ แต่ controlled experiment
+  ยังมีค่า: ยืนยันซ้ำแบบอิสระ + เพิ่มการเช็ค **peak/std** ที่ ablation ไม่ได้ทำ
+- **v2 ablation ชี้ทางต่อ**: `drop_rolling_stats` ทำ MAE ดีขึ้นอีก −0.63 Wh (ยังไม่ถึง
+  เกณฑ์ 1.0) — rolling stats อาจเพิ่ม variance เล็กน้อยที่ horizon 1h → เก็บเป็น
+  candidate v3 (คนละ experiment); `drop_negative_controls` +0.28 Wh (noise level, ผ่าน)
+
+### ไฟล์ที่แตะ
+- `src/.../config.py`, `features.py`, `train.py` (ตามข้อ 1–3)
+- **สร้าง** `tests/test_feature_set_v2.py` (9), `scripts/compare_feature_sets.py`
+- **regenerate** `artifacts/` เป็น v2 canonical + เพิ่ม `feature_set_comparison.csv`
+  (หลักฐาน v1 vs v2 ทุกโมเดล); v1 baseline เก็บใน git history + comparison csv
+- docs: `README.md` / `docs/model_card.md` (→ v2) / `V2_FEATURE_SET_PLAN.md` (status→done)
+
+---
+
 ## 2026-07-19 — GitHub Actions CI: Phase 0 + workflow (stretch goal #1)
 
 ทำตามแผน `docs/CI_PLAN.md` — quality gate อัตโนมัติที่ทำให้คำใน README

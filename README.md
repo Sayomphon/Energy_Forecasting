@@ -47,34 +47,44 @@ What makes it defensible:
 
 ## Result
 
-Backtest over 3 expanding-window folds (validation MAE in Wh, mean ± std):
+The shipped model is **HistGradientBoosting on the lean `v2` feature set**
+(`energy-1h-v2`, 25 features). It was chosen over the full `v1` set (54 features)
+by a controlled experiment whose promotion criteria were fixed *before* the run.
 
-| Model | MAE | WAPE | Peak MAE (≥ train q90) | Fit time |
-|---|---|---|---|---|
-| **HistGradientBoosting** ✅ selected | **43.96 ± 8.09** | 0.453 | 239.0 | 1.6 s |
-| Ridge | 54.25 ± 9.67 | 0.559 | 227.0 | <0.01 s |
-| Last value | 55.38 ± 2.98 | 0.570 | 252.8 | — |
-| Seasonal naive | 61.39 ± 4.43 | 0.632 | 261.8 | — |
+Backtest over 3 expanding-window folds (validation MAE in Wh, mean ± std), HGB
+on each feature set:
 
-HGB beat both baselines in **3/3 folds** (Ridge: 2/3) — full audit trail in
-`artifacts/model_selection.json`. One-shot held-out test (final ~3 weeks,
-n = 2,938): **MAE 34.0 · WAPE 0.351 · bias −14.4 · peak MAE 220.4**.
+| Feature set | Features | MAE | WAPE | Peak MAE (≥ train q90) | Fit time |
+|---|---|---|---|---|---|
+| **`v2` lean** ✅ shipped | 25 | **40.68 ± 4.18** | 0.419 | 237.9 | 0.7 s |
+| `v1` full | 54 | 43.96 ± 8.09 | 0.453 | 239.0 | 1.1 s |
 
-Honest findings, straight from the artifacts:
+On both sets HGB beat every baseline in **3/3 folds** (Ridge 2/3; last-value
+55.4, seasonal-naive 61.4 Wh) — audit trail in `artifacts/model_selection.json`,
+head-to-head in `artifacts/feature_set_comparison.csv`. One-shot held-out test
+(final ~3 weeks, n = 2,938): **MAE 33.6 · WAPE 0.347 · bias −15.7 · peak
+MAE 220.0** (`v1` was MAE 34.0 / peak 220.4).
 
-- **Peaks are the hard part**: peak MAE (220 Wh) dwarfs overall MAE (34 Wh), and
-  test bias is −14 Wh — the model systematically under-forecasts spikes.
-  Next step: quantile regression / a dedicated peak-event classifier.
-- **Ablation surprise** (`ablation_results.csv`): dropping all weather/indoor
-  sensor features *improves* backtest MAE by ~3.3 Wh — recent-load dynamics and
-  calendar carry the signal at a 1-hour horizon; the sensor block adds noise.
-  A leaner `v2` feature set is the obvious follow-up.
-- **Negative controls behave**: removing `rv1`/`rv2` shifts MAE by ~0.5 Wh (~1%),
-  i.e. noise level — the model is not mining the random columns.
+The `v1` → `v2` experiment, and honest findings straight from the artifacts:
+
+- **Dropping the sensor block was tested, not assumed.** `v1` ablation flagged
+  that removing all weather/indoor sensors *improves* MAE by ~3.3 Wh. Since that
+  could be an artefact of ablating a fully-fit model, `v2` was **retrained from
+  scratch** on the lean set and backtested on identical folds. It cleared both
+  pre-set bars — MAE −3.27 Wh and peak MAE −0.45% (no regression) — so `v2` was
+  promoted. It also **roughly halves fold-to-fold variance** (MAE std 8.09 →
+  4.18): fewer noisy inputs, a steadier model. (`scripts/compare_feature_sets.py`)
+- **Peaks are still the hard part**: peak MAE (220 Wh) dwarfs overall MAE
+  (34 Wh), and test bias is −16 Wh — the model systematically under-forecasts
+  spikes. Next step: quantile regression / a dedicated peak-event classifier.
+- **Negative controls behave**: `rv1`/`rv2` stay in even in `v2`; dropping them
+  shifts MAE by ~0.3 Wh (noise level) — the model is not mining the random columns.
 - **Residual ACF at lag 1 = 0.64**: short-term structure remains that lagged
   features don't fully capture.
 
-Reproduce everything with `python -m energy_forecasting.train --fetch`.
+Reproduce: `python -m energy_forecasting.train --fetch --feature-set v2` (shipped
+model), `--feature-set v1` for the baseline, or `python
+scripts/compare_feature_sets.py` for the head-to-head.
 
 ## Key engineering decisions
 
@@ -102,7 +112,7 @@ Reproduce everything with `python -m energy_forecasting.train --fetch`.
 │   ├── inference.py          # bundle save/load (sha256) + forecast contract
 │   └── train.py              # end-to-end CLI
 ├── notebooks/energy_1h_forecast.ipynb   # 19-section narrative notebook
-├── tests/                    # 55 tests — temporal correctness is CI-enforced
+├── tests/                    # 64 tests — temporal correctness is CI-enforced
 ├── artifacts/                # generated: bundle, configs, metrics, reports
 ├── docs/model_card.md
 └── PROJECT_LOG.md            # build log (Thai)
@@ -112,7 +122,7 @@ Reproduce everything with `python -m energy_forecasting.train --fetch`.
 
 ```bash
 pip install -e ".[dev]"
-pytest                                     # 55 tests
+pytest                                     # 64 tests
 python -m energy_forecasting.train --fetch # downloads UCI data once (~12 MB), trains, packages
 ```
 
@@ -123,7 +133,7 @@ from energy_forecasting.inference import load_bundle, predict_one
 bundle = load_bundle("artifacts/forecast_bundle.joblib")   # sha256-verified
 predict_one(bundle, history_df, "2026-07-18T10:00:00")
 # {'prediction_time': ..., 'target_time': ..., 'forecast_appliances_wh': ...,
-#  'quality_flag': 'ok', 'fallback_used': False, 'model_version': 'energy-1h-v1'}
+#  'quality_flag': 'ok', 'fallback_used': False, 'model_version': 'energy-1h-v2'}
 ```
 
 ## Limitations
