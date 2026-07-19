@@ -1,7 +1,7 @@
 # แผนงาน: GitHub Actions CI
 
 > Stretch goal #1 — automated quality gate สำหรับ [Sayomphon/Energy_Forecasting](https://github.com/Sayomphon/Energy_Forecasting)
-> สถานะ: **implemented (local) — รอ push เพื่อ verify CI บน GitHub** · Phase 0 ผ่านครบ (ruff เขียว + 55 tests) · ลงมือจริง 2026-07-19
+> สถานะ: **done ✅ — CI เขียวครบ py3.9–3.12 บน GitHub** ([PR #1](https://github.com/Sayomphon/Energy_Forecasting/pull/1) merged, commit `9a16363`) · Phase 0 ผ่านครบ (ruff เขียว + 55 tests) · เสร็จ 2026-07-19
 
 ---
 
@@ -171,14 +171,14 @@ jobs:
 
 ## 8. Acceptance criteria (Definition of Done)
 
-- [x] `.github/workflows/ci.yml` มีอยู่และ trigger บน push/PR ของ main *(สร้างแล้ว, YAML validate ผ่าน)*
-- [~] Job `lint` เขียว (ruff check + format ผ่าน) — *local เขียวแล้ว (All checks passed! + 15 files formatted); รอ push ยืนยันบน GitHub*
-- [~] Job `test` เขียวครบ Python 3.9 / 3.10 / 3.11 / 3.12 — *local (Python 3.9.6) 55 tests ผ่าน; รอ push ยืนยัน matrix เต็ม*
-- [x] Badge CI passing แสดงใน README *(เพิ่ม badge แล้ว — จะเปลี่ยนเป็น passing เมื่อ CI รันรอบแรก)*
-- [~] CI รันจบใน < 3 นาที และไม่แตะ network (ไม่โหลด dataset) — *ยืนยัน tests offline แล้ว (ไม่มี network ref); เวลารอ push วัดจริง*
-- [x] เอกสารนี้อัปเดตสถานะ + บันทึกใน PROJECT_LOG.md
+- [x] `.github/workflows/ci.yml` มีอยู่และ trigger บน push/PR ของ main
+- [x] Job `lint` เขียว (ruff check + format ผ่าน) — *GitHub: pass 33s*
+- [x] Job `test` เขียวครบ Python 3.9 / 3.10 / 3.11 / 3.12 — *GitHub: pass 52s / 49s / 43s / 46s*
+- [x] Badge CI passing แสดงใน README
+- [x] CI รันจบใน < 3 นาที และไม่แตะ network (ไม่โหลด dataset) — *แต่ละ job 33–52s บน Linux runner; tests ใช้ synthetic fixtures*
+- [x] เอกสารนี้อัปเดตสถานะเป็น **done** + บันทึกใน PROJECT_LOG.md
 
-> สัญลักษณ์: `[x]` = เสร็จในเครื่อง · `[~]` = พิสูจน์ในเครื่องแล้ว รอ push ให้ CI รันจริงบน GitHub เพื่อปิดข้อ
+> ทุกข้อผ่านครบ — verified บน GitHub Actions [run 29686809215](https://github.com/Sayomphon/Energy_Forecasting/actions/runs/29686809215) (PR #1)
 
 ---
 

@@ -44,9 +44,12 @@ pytest บนเครื่อง (macOS หลาย core) กิน CPU 559% 
 - **docs/CI_PLAN.md** — status → implemented (local) + tick acceptance criteria
 - **แก้จาก ruff**: src 8 ไฟล์ + tests 3 ไฟล์ + notebook (แค่ imports/format ไม่แตะ logic)
 
-### ขั้นถัดไป (รอสั่ง)
-- [ ] Push branch (`ci/github-actions`) + เปิด PR → ดู CI เขียวครบ 4 versions บน GitHub
-- [ ] Merge → badge เปลี่ยนเป็น passing → ปิด `[~]` ใน CI_PLAN ให้ครบ
+### ผลลัพธ์ — push + merge เสร็จ (CI เขียวครบ)
+- [x] Push branch + เปิด [PR #1](https://github.com/Sayomphon/Energy_Forecasting/pull/1) →
+  **CI เขียวครบ**: lint 33s · tests py3.9/3.10/3.11/3.12 = 52s/49s/43s/46s
+- [x] Merge เข้า main (merge commit `9a16363`) + ลบ branch → badge passing → CI_PLAN criteria ครบ `[x]`
+- **ยืนยันจริง:** OpenMP oversubscription เป็นปัญหา macOS local เท่านั้น —
+  Linux runner แต่ละ job < 1 นาที (acceptance "< 3 นาที" ผ่านสบาย)
 
 ---
 
